@@ -1,0 +1,182 @@
+---
+title: "Exploring the BRFSS data"
+output: 
+  html_document: 
+    fig_height: 4
+    highlight: pygments
+    theme: spacelab
+---
+
+## Setup
+
+### Load packages
+
+```{r load-packages, message = FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+### Load data
+
+```{r load-data}
+load("brfss2013.RData")
+```
+
+* * *
+
+## Part 1: Data
+
+In the 2013 BRFSS survey, responses were collected via randomly chosen "landline telephone- and cellular telephone-based surveys" in all 50 US states, the District of Columbia, and several US territories and associated states including Puerto Rico, Guam, the US Virgin Islands, American Samoa, Federated States of Micronesia, and the country of Palau. 
+
+Responses were only collected from non-institutionalized individuals aged 18 and older. In landline surveys, data is collected from a randomly chosen adult in the household.
+
+Findings from the 2013 BRFSS survey can be generalized to "the non-institutionalized adult population, aged 18 years or older, who reside in the US". 
+
+This generalization is possible because random sampling was performed on the stated population through random landline and cellular calls.
+
+So, we've 2 possible bias in this data. One can be for those who don't have a cell phone or a landline. Another one for those who reached the survey but doesn't respond.
+
+* * *
+
+## Part 2: Research questions
+
+**Research quesion 1:**
+
+Which states have the highest number of cases of smoking adults?
+
+To answer this, we need:
+
+1. _rfsmok3 ->> which represents the current smoking calculated variable
+
+2. _state ->> which represents the states codes
+
+**Research quesion 2:**
+
+Is the increase of the vegetables intake reflects an improvement in the general health?
+
+To answer this, we need:
+
+1. _vegesum ->> which represents the total vegetables consumed per day
+
+2. genhlth ->> which represents the general health
+
+**Research quesion 3:**
+
+Which state has the highest percentage of the veterans?
+
+To answer this, we need:
+
+1. veteran3 ->> which represents if the individual is veterans or not
+
+* * *
+
+## Part 3: Exploratory data analysis
+
+
+**Research quesion 1:**
+
+Which states have the highest number of cases of smoking adults?
+
+To know the count of smokers and non-smokers, I'm going to convert _the answer_rfsmok3 into 2 possible cases; 1 for Yes and 0 for No
+
+```{r}
+brfss2013  = brfss2013 %>%
+  mutate(X_rfsmok3 = ifelse(X_rfsmok3 == "Yes", 1, 0))
+
+brfss2013 %>%
+  group_by(X_rfsmok3) %>%
+  summarize(count = n())
+```
+
+To determine the number of smoking adults by state, I'm going to group by state the current smoking adults excluding NA values of rsmok3, and arranging the results in desc order
+
+```{r}
+smoking_adults = brfss2013 %>%
+  group_by(X_state) %>%
+  summarize(current_smoking_adults = mean(X_rfsmok3, na.rm=TRUE)) %>%
+  arrange(desc(current_smoking_adults))
+
+smoking_adults
+```
+
+We can visualize the results for more clarity using Histogram. 
+
+Note: I'm going to flip the axes coordination to be more visible.
+
+```{r}
+ggplot(smoking_adults, aes(x=X_state, y=current_smoking_adults)) + geom_col() + coord_flip()
+```
+
+As shown in the Histogram above, the highest numbers of smoking adults are in West Virginia and Guam
+
+**Research quesion 2:**
+
+Is the increase of the vegetables intake reflects an improvement in the general health?
+
+To answer this question, we need first to check the general health records. I'm going to do that by summarizing the count using a group_by of the genhlth
+
+```{r}
+brfss2013 %>% group_by(genhlth) %>% summarize(count = n())
+```
+
+As it seems, there are 5 levels of general health and NA level for missing values.
+
+Now, it's time to proceed to check _vegsum variable, and divide the values by 100 as they are with 2 decimal places.
+
+Then, applying some basic statistics for more exploration with excluding NA values.
+
+```{r}
+brfss2013$X_vegesum = brfss2013$X_vegesum / 100
+
+brfss2013 %>% filter(!is.na(X_vegesum)) %>%
+  summarise(veg_mean = mean(X_vegesum), veg_median = median(X_vegesum), veg_sd = sd(X_vegesum), veg_min = min(X_vegesum), veg_max = max(X_vegesum))
+```
+
+By creating a new varible containing the total of veg, then checking with the median how it reflects on the general health.
+
+```{r}
+brfss2013$vegsum = brfss2013$X_vegesum
+
+brfss2013 %>%
+  filter(!is.na(vegsum)) %>%
+  group_by(genhlth) %>%
+  summarize(median_vegsum = median(vegsum))
+```
+
+The resulted answer is, YES. By eating more vegetables, the general health improves.
+
+**Research quesion 3:**
+
+Which state has the highest percentage of the veterans?
+
+First, we're going to check the count of veterans and non-veterans.
+
+```{r}
+brfss2013  = brfss2013 %>%
+  mutate(veteran3 = ifelse(veteran3 == "Yes", 1, 0))
+
+brfss2013 %>%
+  group_by(veteran3) %>%
+  summarize(count = n())
+
+```
+
+Then, we're going to explore the distribution of current veterans per state.
+
+```{r}
+veterans_per_state = brfss2013 %>%
+  group_by(X_state) %>%
+  summarize(current_veterans = mean(veteran3, na.rm=TRUE)) %>%
+  arrange(desc(current_veterans))
+
+veterans_per_state
+```
+
+Let's visualize the results.
+
+```{r}
+ggplot(veterans_per_state, aes(x=X_state, y=current_veterans)) + geom_col() + coord_flip()
+```
+
+As obvious, Florida is the state with highest veterans rate.
+
